@@ -4,3 +4,9 @@ sqlalchemy
 psycopg2-binary
 pydantic-settings
 python-dotenv
+alembic
+pwdlib[argon2]
+PyJWT
+email-validator
+pytest
+httpx
