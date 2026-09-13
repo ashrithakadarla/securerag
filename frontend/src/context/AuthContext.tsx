@@ -2,7 +2,6 @@
  * Authentication Context
  * 
  * Provides authentication state and methods to the entire app.
- * TODO: Replace mock auth with Firebase onAuthStateChanged listener
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
@@ -31,14 +30,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Check for existing session on mount
   useEffect(() => {
-    const user = authService.getCurrentUser();
-    const isAuth = authService.isAuthenticated();
-    setState({
-      user: isAuth ? user : null,
-      isAuthenticated: isAuth,
-      isLoading: false,
-      error: null,
+    let isMounted = true;
+    authService.getCurrentUser().then(user => {
+      if (isMounted) {
+        setState({ user, isAuthenticated: !!user, isLoading: false, error: null });
+      }
+    }).catch(() => {
+      if (isMounted) {
+        setState({ user: null, isAuthenticated: false, isLoading: false, error: null });
+      }
     });
+
+    return () => { isMounted = false; };
   }, []);
 
   const login = useCallback(async (credentials: LoginCredentials) => {

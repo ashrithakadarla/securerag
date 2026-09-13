@@ -1,23 +1,41 @@
 import { useState, useEffect } from 'react';
 import { Shield, ShieldAlert, ShieldCheck, AlertTriangle, ShieldOff, Bug, KeyRound, MessageSquareWarning, FileX, ToggleLeft, ToggleRight } from 'lucide-react';
 import { securityService } from '../../services/securityService';
-import { SecuritySettings } from '../../types';
-import { mockSecurityEvents } from '../../data/mockSecurityEvents';
+import { SecurityEvent, SecuritySettings } from '../../types';
 import { LoadingSpinner } from '../../components/ui/LoadingStates';
 import { showToast } from '../../components/ui/Toast';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const threatTypeData = [
-  { name: 'Prompt Injection', count: 38, blocked: 36, color: '#ef4444' },
-  { name: 'Jailbreak', count: 24, blocked: 22, color: '#f97316' },
-  { name: 'Malicious Doc', count: 18, blocked: 17, color: '#eab308' },
-  { name: 'Prompt Leakage', count: 12, blocked: 11, color: '#8b5cf6' },
-  { name: 'Unsafe Output', count: 8, blocked: 7, color: '#06b6d4' },
-];
+type ThreatChartDatum = { name: string; count: number; blocked: number; color: string };
+
+const threatCategories = [
+  { name: 'Prompt Injection', eventType: 'prompt_injection', color: '#ef4444' },
+  { name: 'Jailbreak', eventType: 'jailbreak', color: '#f97316' },
+  { name: 'Malicious Doc', eventType: 'malicious_document', color: '#eab308' },
+  { name: 'Prompt Leakage', eventType: 'prompt_leakage', color: '#8b5cf6' },
+  { name: 'Unsafe Output', eventType: 'unsafe_output', color: '#06b6d4' },
+] as const;
+
+function buildThreatTypeData(events: SecurityEvent[]): ThreatChartDatum[] {
+  return threatCategories.map(category => {
+    const matchingEvents = events.filter(event => {
+      const eventType = event.eventType || event.threatType.toLowerCase().replace(/\s+/g, '_');
+      return eventType === category.eventType;
+    });
+
+    return {
+      name: category.name,
+      count: matchingEvents.length,
+      blocked: matchingEvents.filter(event => event.action === 'blocked').length,
+      color: category.color,
+    };
+  });
+}
 
 export default function SecurityPage() {
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState({ totalThreats: 0, detectedThreats: 0, blockedThreats: 0, criticalThreats: 0 });
+  const [threatTypeData, setThreatTypeData] = useState<ThreatChartDatum[]>([]);
   const [settings, setSettings] = useState<SecuritySettings>({
     promptInjectionProtection: true,
     jailbreakDetection: true,
@@ -30,9 +48,11 @@ export default function SecurityPage() {
     Promise.all([
       securityService.getThreatOverview(),
       securityService.getSecuritySettings(),
-    ]).then(([ov, s]) => {
+      securityService.getSecurityEvents(),
+    ]).then(([ov, s, events]) => {
       setOverview(ov);
       setSettings(s);
+      setThreatTypeData(buildThreatTypeData(events));
       setLoading(false);
     });
   }, []);

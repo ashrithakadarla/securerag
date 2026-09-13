@@ -1,126 +1,135 @@
-/**
- * Authentication Service
- * 
- * Currently uses mock/local authentication.
- * 
- * TODO: Replace mock implementation with Firebase Authentication
- * - Import and initialize Firebase Auth
- * - Replace login() with signInWithEmailAndPassword()
- * - Replace register() with createUserWithEmailAndPassword()
- * - Replace logout() with signOut()
- * - Replace getCurrentUser() with onAuthStateChanged()
- * - Replace resetPassword() with sendPasswordResetEmail()
- */
-
 import { User, LoginCredentials, RegisterCredentials } from '../types';
-import { mockUser } from '../data/mockUsers';
 
-const AUTH_KEY = 'securerag_auth';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001/api/v1').replace(/\/$/, '');
+const TOKEN_KEY = 'securerag_access_token';
 const USER_KEY = 'securerag_user';
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+interface BackendUser {
+  id: number;
+  email: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+interface LoginResponse {
+  access_token: string;
+  token_type: string;
+}
+
+function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+}
+
+function clearStoredAuth(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(USER_KEY);
+}
+
+function mapUser(user: BackendUser): User {
+  const displayName = user.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, character => character.toUpperCase());
+  return {
+    id: String(user.id),
+    fullName: displayName,
+    email: user.email,
+    role: user.role,
+    createdAt: user.created_at,
+  };
+}
+
+async function getErrorMessage(response: Response): Promise<string> {
+  if (response.status === 401) return 'Invalid email or password.';
+  if (response.status === 400) return 'This request could not be completed. Check your details and try again.';
+  if (response.status === 422) return 'Please check your email and password and try again.';
+  if (response.status === 403) return 'This account is not active.';
+  return 'Authentication request failed. Please try again.';
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response));
+  }
+
+  return response.json() as Promise<T>;
+}
+
+async function fetchCurrentUser(token: string): Promise<User> {
+  const backendUser = await request<BackendUser>('/auth/me', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return mapUser(backendUser);
+}
+
+function storeAuth(token: string, user: User, rememberMe: boolean): void {
+  const storage = rememberMe ? localStorage : sessionStorage;
+  storage.setItem(TOKEN_KEY, token);
+  storage.setItem(USER_KEY, JSON.stringify(user));
+}
 
 export const authService = {
-  /**
-   * Login with email and password
-   * TODO: Replace with Firebase signInWithEmailAndPassword
-   */
   async login(credentials: LoginCredentials): Promise<User> {
-    await delay(1200);
+    const response = await request<LoginResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: credentials.email, password: credentials.password }),
+    });
 
-    if (credentials.email === 'demo@securerag.io' && credentials.password === 'password123') {
-      const user = { ...mockUser, email: credentials.email };
-      if (credentials.rememberMe) {
-        localStorage.setItem(AUTH_KEY, 'true');
-        localStorage.setItem(USER_KEY, JSON.stringify(user));
-      } else {
-        sessionStorage.setItem(AUTH_KEY, 'true');
-        sessionStorage.setItem(USER_KEY, JSON.stringify(user));
-      }
+    try {
+      const user = await fetchCurrentUser(response.access_token);
+      storeAuth(response.access_token, user, credentials.rememberMe === true);
       return user;
+    } catch (error) {
+      clearStoredAuth();
+      throw error;
     }
-
-    // Accept any email/password for demo (except wrong password patterns)
-    if (credentials.password.length < 6) {
-      throw new Error('Invalid email or password.');
-    }
-
-    const user: User = {
-      ...mockUser,
-      email: credentials.email,
-      fullName: credentials.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-    };
-
-    if (credentials.rememberMe) {
-      localStorage.setItem(AUTH_KEY, 'true');
-      localStorage.setItem(USER_KEY, JSON.stringify(user));
-    } else {
-      sessionStorage.setItem(AUTH_KEY, 'true');
-      sessionStorage.setItem(USER_KEY, JSON.stringify(user));
-    }
-
-    return user;
   },
 
-  /**
-   * Register a new user
-   * TODO: Replace with Firebase createUserWithEmailAndPassword
-   */
   async register(credentials: RegisterCredentials): Promise<User> {
-    await delay(1500);
-
     if (credentials.password !== credentials.confirmPassword) {
       throw new Error('Passwords do not match.');
     }
 
-    if (credentials.password.length < 8) {
-      throw new Error('Password must be at least 8 characters.');
-    }
+    await request<BackendUser>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email: credentials.email, password: credentials.password }),
+    });
 
-    const user: User = {
-      id: `usr_${Date.now()}`,
-      fullName: credentials.fullName,
-      email: credentials.email,
-      role: 'analyst',
-      createdAt: new Date().toISOString(),
-    };
-
-    sessionStorage.setItem(AUTH_KEY, 'true');
-    sessionStorage.setItem(USER_KEY, JSON.stringify(user));
-
-    return user;
+    return this.login({ email: credentials.email, password: credentials.password, rememberMe: false });
   },
 
-  /**
-   * Logout the current user
-   * TODO: Replace with Firebase signOut
-   */
   async logout(): Promise<void> {
-    await delay(300);
-    localStorage.removeItem(AUTH_KEY);
-    localStorage.removeItem(USER_KEY);
-    sessionStorage.removeItem(AUTH_KEY);
-    sessionStorage.removeItem(USER_KEY);
+    clearStoredAuth();
   },
 
-  /**
-   * Get the currently authenticated user
-   * TODO: Replace with Firebase onAuthStateChanged
-   */
-  getCurrentUser(): User | null {
-    const stored = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
-    if (stored) {
-      try { return JSON.parse(stored); } catch { return null; }
+  async getCurrentUser(): Promise<User | null> {
+    const token = getToken();
+    if (!token) return null;
+
+    try {
+      const user = await fetchCurrentUser(token);
+      const storage = localStorage.getItem(TOKEN_KEY) ? localStorage : sessionStorage;
+      storage.setItem(USER_KEY, JSON.stringify(user));
+      return user;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid email or password.') {
+        clearStoredAuth();
+        return null;
+      }
+      throw error;
     }
-    return null;
   },
 
-  /**
-   * Check if a user is authenticated
-   * TODO: Replace with Firebase auth state check
-   */
   isAuthenticated(): boolean {
-    return !!(localStorage.getItem(AUTH_KEY) || sessionStorage.getItem(AUTH_KEY));
+    return !!getToken();
   },
 
   /**
@@ -128,11 +137,8 @@ export const authService = {
    * TODO: Replace with Firebase sendPasswordResetEmail
    */
   async resetPassword(email: string): Promise<void> {
-    await delay(1000);
-    if (!email.includes('@')) {
-      throw new Error('Please enter a valid email address.');
-    }
-    // Mock: always succeeds
+    void email;
+    throw new Error('Password reset is not available yet.');
   },
 
   /**
@@ -140,11 +146,7 @@ export const authService = {
    * TODO: Replace with Firebase GoogleAuthProvider
    */
   async signInWithGoogle(): Promise<User> {
-    await delay(1000);
-    const user = { ...mockUser, fullName: 'Google User', email: 'google.user@gmail.com' };
-    sessionStorage.setItem(AUTH_KEY, 'true');
-    sessionStorage.setItem(USER_KEY, JSON.stringify(user));
-    return user;
+    throw new Error('Google sign-in is not available yet.');
   },
 
   /**
@@ -152,10 +154,6 @@ export const authService = {
    * TODO: Replace with Firebase GithubAuthProvider
    */
   async signInWithGithub(): Promise<User> {
-    await delay(1000);
-    const user = { ...mockUser, fullName: 'GitHub User', email: 'github.user@github.com' };
-    sessionStorage.setItem(AUTH_KEY, 'true');
-    sessionStorage.setItem(USER_KEY, JSON.stringify(user));
-    return user;
+    throw new Error('GitHub sign-in is not available yet.');
   },
 };
