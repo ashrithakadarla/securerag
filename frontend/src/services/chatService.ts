@@ -1,19 +1,17 @@
 /**
  * Chat Service
- * TODO: Replace mock responses with FastAPI RAG backend calls
  */
 
 import { ChatMessage, ChatConversation } from '../types';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001/api/v1').replace(/\/$/, '');
 
-const mockResponses = [
-  { content: 'Based on the HR Policy document (Trust Score: 96), employees are eligible for 15 days of paid vacation annually, plus 10 public holidays. Part-time employees receive prorated benefits.', docs: 3, risk: 5 },
-  { content: 'The Q3 Financial Report shows revenue of $12.4M, a 15% increase from Q2. Operating expenses were $8.1M. The company\'s security infrastructure investment increased by 23%.', docs: 2, risk: 3 },
-  { content: 'According to the Training Manual, the onboarding process consists of 5 phases: orientation (Week 1), technical training (Weeks 2-3), shadowing (Week 4), independent work (Weeks 5-6), and performance review (Week 7).', docs: 4, risk: 2 },
-  { content: 'The Company Rules document outlines the code of conduct policy. Key points include: data confidentiality requirements, acceptable use of company resources, conflict of interest disclosure, and anti-harassment policies.', docs: 2, risk: 8 },
-  { content: 'The security audit from August 2024 identified 3 low-severity findings: outdated SSL certificates on staging servers, missing MFA on 2 admin accounts, and insufficient logging on the document upload endpoint. All items were remediated within 48 hours.', docs: 1, risk: 4 },
-];
+interface ChatResponse {
+  answer: string;
+  status: string;
+  risk_score: number;
+}
 
 let conversations: ChatConversation[] = [
   {
@@ -57,17 +55,29 @@ export const chatService = {
   },
 
   async sendMessage(conversationId: string, content: string): Promise<ChatMessage> {
-    await delay(1500 + Math.random() * 1500);
+    const response = await fetch(`${API_BASE_URL}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: content }),
+    });
 
-    const response = mockResponses[Math.floor(Math.random() * mockResponses.length)];
+    if (!response.ok) {
+      throw new Error('Unable to process chat request. Please try again.');
+    }
+
+    const chatResponse = await response.json() as ChatResponse;
+    console.log('[SecureRAG] Chat API URL:', `${API_BASE_URL}/chat`);
+    console.log('[SecureRAG] Chat API status:', response.status);
+    console.log('[SecureRAG] Chat API response:', chatResponse);
     const assistantMessage: ChatMessage = {
       id: `msg_${Date.now()}`,
       role: 'assistant',
-      content: response.content,
+      content: chatResponse.answer,
       timestamp: new Date().toISOString(),
-      securityStatus: 'safe',
-      riskScore: response.risk,
-      retrievedDocs: response.docs,
+      securityStatus: chatResponse.status === 'BLOCKED'
+        ? 'blocked'
+        : chatResponse.status === 'SAFE' ? 'safe' : 'warning',
+      riskScore: chatResponse.risk_score,
       responseValidated: true,
     };
 

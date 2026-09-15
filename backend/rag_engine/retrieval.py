@@ -5,7 +5,11 @@ Given a user query, finds the most relevant chunks stored in ChromaDB.
 """
 
 from typing import List, Dict
-from embeddings import embed_text, _collection
+
+if __package__:
+    from .embeddings import embed_text, _collection
+else:
+    from embeddings import embed_text, _collection
 
 
 def retrieve_chunks(query: str, top_k: int = 3) -> List[Dict]:

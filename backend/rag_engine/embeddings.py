@@ -8,7 +8,10 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 from typing import List
 
-from ingestion import DocumentChunk
+try:
+    from .ingestion import DocumentChunk
+except ImportError:
+    from ingestion import DocumentChunk
 
 
 # Load the embedding model once (this downloads a small model the first time)
