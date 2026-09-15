@@ -7,11 +7,13 @@ and returns the generated answer.
 
 from langchain_ollama import ChatOllama
 
+from app.core.config import settings
 
-# Model name must match what you pulled with `ollama pull <name>`
-MODEL_NAME = "llama3.2"
-
-_llm = ChatOllama(model=MODEL_NAME, temperature=0.2)
+_llm = ChatOllama(
+    model=settings.OLLAMA_MODEL,
+    base_url=settings.OLLAMA_BASE_URL,
+    temperature=0.2,
+)
 
 
 def build_prompt(query: str, context_chunks: list) -> str:

@@ -8,6 +8,8 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 from typing import List
 
+from app.core.config import settings
+
 try:
     from .ingestion import DocumentChunk
 except ImportError:
@@ -18,7 +20,7 @@ except ImportError:
 _model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # Create a persistent ChromaDB client - stores data in a local folder
-_client = chromadb.PersistentClient(path="./chroma_db")
+_client = chromadb.PersistentClient(path=settings.CHROMA_DB_PATH)
 
 # Get or create a collection (like a table) to store our document chunks
 _collection = _client.get_or_create_collection(
