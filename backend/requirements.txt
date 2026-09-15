@@ -10,3 +10,10 @@ PyJWT
 email-validator
 pytest
 httpx
+langchain
+langchain-community
+langchain-ollama
+sentence-transformers
+chromadb
+pypdf
+python-docx
