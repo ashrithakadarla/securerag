@@ -56,6 +56,7 @@ export interface SecurityEvent {
   eventType: 'prompt_injection' | 'jailbreak' | 'malicious_document' | 'prompt_leakage' | 'unsafe_output' | 'safe_query';
   threatType: string;
   riskScore: number;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
   action: 'blocked' | 'allowed' | 'flagged';
   status: 'resolved' | 'active' | 'investigating';
   description: string;

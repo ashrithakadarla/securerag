@@ -58,6 +58,7 @@ function mapAuditLogToSecurityEvent(log: BackendAuditLog): SecurityEvent {
     eventType: log.event_type as SecurityEvent['eventType'],
     threatType: log.event_type,
     riskScore: log.risk_score ?? 0,
+    severity: log.severity as SecurityEvent['severity'],
     action,
     status: action === 'blocked' || action === 'allowed' ? 'resolved' : 'investigating',
     description: log.message,
