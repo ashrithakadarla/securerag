@@ -10,6 +10,7 @@ const pageNames: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/chat': 'Chat',
   '/documents': 'Documents',
+  '/admin': 'Admin Dashboard',
   '/security': 'Security',
   '/analytics': 'Analytics',
   '/audit-logs': 'Audit Logs',
@@ -57,15 +58,24 @@ export function TopNav({ onMenuClick }: TopNavProps) {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
-  const searchResults = searchQuery.trim() ? [
-    { type: 'Page', label: 'Dashboard', path: '/dashboard' },
-    { type: 'Page', label: 'Documents', path: '/documents' },
-    { type: 'Page', label: 'Security', path: '/security' },
-    { type: 'Page', label: 'Analytics', path: '/analytics' },
-    { type: 'Page', label: 'Audit Logs', path: '/audit-logs' },
-    { type: 'Page', label: 'Attack Simulation', path: '/attack-simulation' },
-    { type: 'Page', label: 'Settings', path: '/settings' },
-  ].filter(r => r.label.toLowerCase().includes(searchQuery.toLowerCase())) : [];
+  const searchResults = searchQuery.trim()
+    ? [
+        { type: 'Page', label: 'Dashboard', path: '/dashboard' },
+        { type: 'Page', label: 'Chat', path: '/chat' },
+        { type: 'Page', label: 'Documents', path: '/documents' },
+        { type: 'Page', label: 'Settings', path: '/settings' },
+        { type: 'Page', label: 'Admin Dashboard', path: '/admin', adminOnly: true },
+        { type: 'Page', label: 'Security', path: '/security', adminOnly: true },
+        { type: 'Page', label: 'Analytics', path: '/analytics', adminOnly: true },
+        { type: 'Page', label: 'Audit Logs', path: '/audit-logs', adminOnly: true },
+        { type: 'Page', label: 'Attack Simulation', path: '/attack-simulation', adminOnly: true },
+        { type: 'Page', label: 'Evaluation', path: '/evaluation', adminOnly: true },
+      ]
+        .filter(result => !result.adminOnly || user?.role === 'admin')
+        .filter(result =>
+          result.label.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+    : [];
 
   const handleLogout = async () => {
     await logout();

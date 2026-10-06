@@ -9,11 +9,12 @@ const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/chat', label: 'Chat', icon: MessageSquare },
   { to: '/documents', label: 'Documents', icon: FileText },
-  { to: '/security', label: 'Security', icon: Shield },
-  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { to: '/audit-logs', label: 'Audit Logs', icon: ScrollText },
-  { to: '/attack-simulation', label: 'Attack Simulation', icon: Crosshair },
-  { to: '/evaluation', label: 'Evaluation', icon: ClipboardCheck },
+  { to: '/admin', label: 'Admin Dashboard', icon: Shield, adminOnly: true },
+  { to: '/security', label: 'Security', icon: Shield, adminOnly: true },
+  { to: '/analytics', label: 'Analytics', icon: BarChart3, adminOnly: true },
+  { to: '/audit-logs', label: 'Audit Logs', icon: ScrollText, adminOnly: true },
+  { to: '/attack-simulation', label: 'Attack Simulation', icon: Crosshair, adminOnly: true },
+  { to: '/evaluation', label: 'Evaluation', icon: ClipboardCheck, adminOnly: true },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -55,7 +56,9 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navItems.map(item => (
+        {navItems
+          .filter(item => !item.adminOnly || user?.role === 'admin')
+          .map(item => (
           <NavLink
             key={item.to}
             to={item.to}
