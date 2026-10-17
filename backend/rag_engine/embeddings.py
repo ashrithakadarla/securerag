@@ -34,7 +34,7 @@ def embed_text(text: str) -> List[float]:
     return embedding.tolist()
 
 
-def store_chunks(chunks: List[DocumentChunk]) -> None:
+def store_chunks(chunks: List[DocumentChunk], extra_metadata: dict | None = None) -> None:
     """
     Embed a list of DocumentChunks and store them in ChromaDB.
     """
@@ -44,7 +44,11 @@ def store_chunks(chunks: List[DocumentChunk]) -> None:
     ids = [f"{c.document_id}_{c.chunk_id}" for c in chunks]
     documents = [c.content for c in chunks]
     embeddings = [embed_text(c.content) for c in chunks]
-    metadatas = [{"document_id": c.document_id, "chunk_id": c.chunk_id} for c in chunks]
+    base_meta = extra_metadata or {}
+    metadatas = [
+        {"document_id": c.document_id, "chunk_id": c.chunk_id, **base_meta}
+        for c in chunks
+    ]
 
     _collection.add(
         ids=ids,
@@ -54,9 +58,20 @@ def store_chunks(chunks: List[DocumentChunk]) -> None:
     )
 
 
+def delete_chunks(document_id: str) -> None:
+    """
+    Delete all stored chunks for a specific document from ChromaDB.
+    """
+    try:
+        _collection.delete(where={"document_id": document_id})
+    except Exception as exc:
+        print(f"SecureRAG: failed to delete ChromaDB chunks for {document_id}: {exc}")
+
+
 def collection_count() -> int:
     """Return how many chunks are currently stored."""
     return _collection.count()
+
 
 
 # --- Test this file directly ---

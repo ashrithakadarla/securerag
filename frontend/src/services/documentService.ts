@@ -1,76 +1,126 @@
 /**
  * Document Service
- * TODO: Replace with FastAPI/Firebase backend calls
+ * Integrates with SecureRAG FastAPI Document Ingestion & Management APIs
  */
 
 import { Document } from '../types';
-import { mockDocuments } from '../data/mockDocuments';
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-let documents = [...mockDocuments];
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001/api/v1').replace(/\/$/, '');
+
+function getToken(): string | null {
+  return localStorage.getItem('securerag_access_token') || sessionStorage.getItem('securerag_access_token');
+}
+
+function mapDocument(data: any): Document {
+  const isCompleted = data.status === 'completed' || data.processing_status === 'completed';
+  return {
+    id: String(data.id),
+    name: data.name || data.filename || 'Unnamed Document',
+    type: (data.type || data.file_type || 'pdf') as Document['type'],
+    size: Number(data.size || data.file_size || 0),
+    uploadDate: data.uploadDate || data.created_at || new Date().toISOString(),
+    trustScore: data.trustScore !== undefined ? data.trustScore : (data.trust_score !== undefined ? data.trust_score : 0),
+    riskLevel: (data.riskLevel || data.risk_level || 'scanning') as Document['riskLevel'],
+    status: (isCompleted ? 'analyzed' : (data.status || data.processing_status || 'analyzed')) as Document['status'],
+    uploadedBy: data.uploadedBy || (data.uploader_id ? `User #${data.uploader_id}` : 'You'),
+    findings: Array.isArray(data.findings) ? data.findings : [],
+    threats: Array.isArray(data.threats) ? data.threats : [],
+  };
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Request failed';
+    try {
+      const errJson = await response.json();
+      errorDetail = errJson.detail || errJson.message || errorDetail;
+    } catch {
+      // fallback
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json() as Promise<T>;
+}
 
 export const documentService = {
   async getDocuments(): Promise<Document[]> {
-    await delay(500);
-    return [...documents];
+    const data = await request<any[]>('/documents');
+    return data.map(mapDocument);
   },
 
   async getDocument(id: string): Promise<Document | null> {
-    await delay(300);
-    return documents.find(d => d.id === id) || null;
+    try {
+      const data = await request<any>(`/documents/${id}`);
+      return mapDocument(data);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('not found')) {
+        return null;
+      }
+      throw error;
+    }
   },
 
   async uploadDocument(file: File): Promise<Document> {
-    await delay(2000);
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
-    const type = (['pdf', 'docx', 'txt', 'csv'].includes(ext) ? ext : 'pdf') as Document['type'];
-    const newDoc: Document = {
-      id: `doc_${Date.now()}`,
-      name: file.name,
-      type,
-      size: file.size,
-      uploadDate: new Date().toISOString(),
-      trustScore: 0,
-      riskLevel: 'scanning',
-      status: 'scanning',
-      uploadedBy: 'Alex Morgan',
-      findings: [],
-      threats: [],
-    };
-    documents = [newDoc, ...documents];
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('file', file);
 
-    // Simulate analysis completing after 3 seconds
-    setTimeout(() => {
-      const score = Math.floor(Math.random() * 60) + 40;
-      const idx = documents.findIndex(d => d.id === newDoc.id);
-      if (idx >= 0) {
-        documents[idx] = {
-          ...documents[idx],
-          trustScore: score,
-          riskLevel: score >= 85 ? 'trusted' : score >= 60 ? 'moderate' : 'high',
-          status: 'analyzed',
-          findings: score < 60 ? [{ id: `f_${Date.now()}`, type: 'Security Scan', severity: 'high', description: 'Potential security concerns detected', timestamp: new Date().toISOString() }] : [],
-        };
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/documents/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorDetail = 'Upload failed';
+      try {
+        const errJson = await response.json();
+        errorDetail = errJson.detail || errJson.message || errorDetail;
+      } catch {
+        // fallback
       }
-    }, 3000);
+      throw new Error(errorDetail);
+    }
 
-    return newDoc;
+    const data = await response.json();
+    return mapDocument(data);
   },
 
   async deleteDocument(id: string): Promise<void> {
-    await delay(500);
-    documents = documents.filter(d => d.id !== id);
+    await request<void>(`/documents/${id}`, {
+      method: 'DELETE',
+    });
   },
 
   async searchDocuments(query: string): Promise<Document[]> {
-    await delay(300);
+    const docs = await this.getDocuments();
     const q = query.toLowerCase();
-    return documents.filter(d => d.name.toLowerCase().includes(q) || d.type.includes(q));
+    return docs.filter(d => d.name.toLowerCase().includes(q) || d.type.includes(q));
   },
 
   async filterByRisk(riskLevel: string): Promise<Document[]> {
-    await delay(200);
-    if (riskLevel === 'all') return [...documents];
-    return documents.filter(d => d.riskLevel === riskLevel);
+    const docs = await this.getDocuments();
+    if (riskLevel === 'all') return docs;
+    return docs.filter(d => d.riskLevel === riskLevel);
   },
 };

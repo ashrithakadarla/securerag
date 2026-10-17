@@ -1,9 +1,14 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
+
+if TYPE_CHECKING:
+    from app.models.chat import Conversation
+    from app.models.document import Document
 
 
 class User(Base):
@@ -20,5 +25,9 @@ class User(Base):
         server_default=func.now(),
     )
 
+    documents: Mapped[list["Document"]] = relationship("Document", back_populates="uploader")
+    conversations: Mapped[list["Conversation"]] = relationship("Conversation", back_populates="user")
+
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email!r} role={self.role!r}>"
+
